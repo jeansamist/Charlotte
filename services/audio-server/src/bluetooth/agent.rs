@@ -139,11 +139,12 @@ impl Agent {
     ) -> Result<(), AgentError> {
         let dev = self.device(conn, &device).await?;
         let trusted = dev.trusted().await.unwrap_or(false);
+        let name = dev.alias().await.unwrap_or_default();
         if (trusted && self.accept_trusted) || self.pairing_window_open(conn).await {
-            info!(device = %dev.alias().await.unwrap_or_default(), %uuid, "service authorized");
+            info!(device = %name, %uuid, "service authorized");
             Ok(())
         } else {
-            warn!(device = %dev.alias().await.unwrap_or_default(), %uuid, "service rejected (untrusted device)");
+            warn!(device = %name, %uuid, "service rejected (untrusted device)");
             Err(AgentError::Rejected("untrusted device".into()))
         }
     }
