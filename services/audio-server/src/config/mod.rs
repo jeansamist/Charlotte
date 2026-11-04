@@ -21,6 +21,8 @@ pub struct Config {
 #[serde(default, deny_unknown_fields)]
 pub struct ServerConfig {
     pub name: String,
+    /// Serve the local HTTP API (used by the Charlotte gateway / web GUI).
+    pub api_enabled: bool,
     pub host: String,
     pub port: u16,
 }
@@ -29,7 +31,9 @@ impl Default for ServerConfig {
     fn default() -> Self {
         Self {
             name: "charlotte-audio-server".into(),
-            host: "0.0.0.0".into(),
+            api_enabled: true,
+            // The API has no authentication: keep it local. The gateway is the public entry.
+            host: "127.0.0.1".into(),
             port: 8080,
         }
     }
@@ -100,12 +104,15 @@ impl Default for BluetoothConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct OutputConfig {
     pub device: String,
+    /// With device = "default": switch to any Bluetooth headphones/speaker that connects.
+    pub follow_bluetooth: bool,
 }
 
 impl Default for OutputConfig {
     fn default() -> Self {
         Self {
             device: "default".into(),
+            follow_bluetooth: true,
         }
     }
 }

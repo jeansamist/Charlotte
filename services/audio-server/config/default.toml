@@ -3,7 +3,10 @@
 
 [server]
 name = "charlotte-audio-server"
-host = "0.0.0.0"   # used by the HTTP API (milestone 2)
+# Local HTTP API used by the Charlotte gateway. It has NO authentication:
+# keep host = 127.0.0.1 (the gateway, which has login, is the public entry).
+api_enabled = true
+host = "127.0.0.1"
 port = 8080
 
 [audio]
@@ -33,8 +36,11 @@ auto_accept_trusted_devices = true
 auto_connect_sources = true
 
 [output]
-# "default" = PipeWire default sink, or a node.name (see `audio-server list-nodes`).
+# "default" = PipeWire default sink (changeable from the GUI), or a fixed node.name
+# (see `audio-server list-nodes`).
 device = "default"
+# With device = "default": any Bluetooth headphones/speaker that connects becomes the output.
+follow_bluetooth = true
 
 [logging]
 level = "info"

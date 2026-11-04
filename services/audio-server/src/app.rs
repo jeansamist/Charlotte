@@ -13,6 +13,8 @@ use crate::config::Config;
 use crate::devices::discovery::{classify, NodeKind};
 use crate::devices::registry::{DeviceRegistry, NodeInfo};
 use crate::monitoring::ProcessSampler;
+use crate::shared::{InputEntry, OutputEntry, Shared};
+use std::sync::{Arc, Mutex};
 use anyhow::Context as _;
 use pipewire as pw;
 use pw::registry::GlobalObject;
@@ -49,6 +51,7 @@ struct State {
     sims: Vec<SimSource>,
     sampler: ProcessSampler,
     last_cycles: u64,
+    shared: Arc<Shared>,
 }
 
 pub fn run(cfg: Config, opts: RunOptions) -> anyhow::Result<()> {
@@ -71,6 +74,24 @@ pub fn run(cfg: Config, opts: RunOptions) -> anyhow::Result<()> {
     }
 
     let (handle, engine) = new_engine(&cfg.audio);
+    let shared = Arc::new(Shared {
+        started_at: std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0),
+        version: env!("CARGO_PKG_VERSION"),
+        master: handle.master().clone(),
+        inputs: Mutex::new(Vec::new()),
+        outputs: Mutex::new(Vec::new()),
+        sampler: Mutex::new(ProcessSampler::default()),
+        bluetooth_adapter: cfg.bluetooth.enabled.then(|| cfg.bluetooth.adapter.clone()),
+        samples_per_ms: (cfg.audio.sample_rate * cfg.audio.channels) as f32 / 1000.0,
+    });
+    if cfg.server.api_enabled {
+        if let Err(e) = crate::api::spawn(shared.clone(), cfg.server.host.clone(), cfg.server.port) {
+            warn!(error = %e, "cannot start HTTP API thread");
+        }
+    }
     let _playback = connect_playback(&core, engine, &cfg).context("create output stream")?;
     info!(
         output = %cfg.output.device,
@@ -92,6 +113,7 @@ pub fn run(cfg: Config, opts: RunOptions) -> anyhow::Result<()> {
         sims: Vec::new(),
         sampler: ProcessSampler::default(),
         last_cycles: 0,
+        shared: shared.clone(),
     }));
 
     // Simulated inputs: tones on a pentatonic scale so the mix is audible.
@@ -106,6 +128,16 @@ pub fn run(cfg: Config, opts: RunOptions) -> anyhow::Result<()> {
                 .context("add simulated input")?;
             let sim = SimSource::spawn(producer, freq, 0.2, cfg.audio.sample_rate, cfg.audio.channels as usize);
             st.sims.push(sim);
+            if let Some(control) = st.engine.channel(slot).cloned() {
+                st.shared.add_input(InputEntry {
+                    slot,
+                    node_id: None,
+                    node_name: String::new(),
+                    device: format!("Test tone {freq} Hz"),
+                    kind: "simulated",
+                    control,
+                });
+            }
             info!(slot, freq, "simulated input added");
         }
     }
@@ -260,6 +292,23 @@ fn on_global(state: &Rc<RefCell<State>>, g: &GlobalObject<&DictRef>, capture_bt:
         }
         NodeKind::OutputSink | NodeKind::VirtualSink => {
             info!(id = g.id, output = %name, kind = kind.label(), "output available");
+            st.shared.add_output(OutputEntry {
+                id: g.id,
+                name: name.clone(),
+                description: description.clone(),
+                kind: if name.starts_with("bluez_output.") { "bluetooth" } else { kind.label() },
+            });
+            // Any Bluetooth headphones / speaker that connects becomes the output.
+            let follow = st.cfg.output.follow_bluetooth && st.cfg.output.device == "default";
+            if follow && kind == NodeKind::OutputSink && name.starts_with("bluez_output.") {
+                let id = g.id;
+                info!(id, output = %description, "Bluetooth output connected → switching mixer output");
+                std::thread::spawn(move || {
+                    if let Err(e) = crate::outputs::set_default_sink(id) {
+                        warn!(error = %e, "cannot switch output");
+                    }
+                });
+            }
         }
         _ => {}
     }
@@ -278,6 +327,16 @@ fn start_capture(st: &mut State, id: u32, name: &str, description: &str) {
         Ok(cap) => {
             info!(id, slot, device = %description, node = %name, "Bluetooth source connected → mixer input");
             st.captures.insert(id, cap);
+            if let Some(control) = st.engine.channel(slot).cloned() {
+                st.shared.add_input(InputEntry {
+                    slot,
+                    node_id: Some(id),
+                    node_name: name.to_owned(),
+                    device: description.to_owned(),
+                    kind: "bluetooth",
+                    control,
+                });
+            }
         }
         Err(e) => {
             error!(device = %description, error = %e, "cannot capture Bluetooth source");
@@ -297,8 +356,10 @@ fn on_global_remove(state: &Rc<RefCell<State>>, id: u32) {
         if let Err(e) = st.engine.remove_input(slot) {
             warn!(slot, error = %e, "remove input");
         }
+        st.shared.remove_input(slot);
         info!(id, slot, node = %st.devices.get(id).map_or("?", |n| n.name.as_str()), "Bluetooth source disconnected → input removed");
     }
+    st.shared.remove_output(id);
     st.devices.remove(id);
 }
 
