@@ -74,6 +74,9 @@ Plan and milestones: `services/audio-server/docs/PLAN.md`. M1 = PoC: 2 phones ov
     (`scripts/setup-bluetooth.sh` sets `Class = 0x240414` in /etc/bluetooth/main.conf, needs sudo).
 - WirePlumber creates `bluez_input.<addr with colons>` nodes with `bluez5.loopback=true` for headset mics.
   Never capture them (it switches the headset to HFP). The mixer inspects full node info before capturing.
+- BlueZ's *hostname* plugin overwrites `Class` from main.conf with Computer/Laptop (chassis=laptop).
+  iOS then hides the device. setup-bluetooth.sh adds a systemd drop-in `bluetoothd --noplugin=hostname`.
+- Stop a background mixer with `pkill -TERM -x audio-server` (SIGINT is ignored by `&` jobs; never `pkill -f "audio-server run"`, which matches the ssh shell itself).
 - Test setup: MacBook → (A2DP) → Debian mixer → soundcore R50i earbuds (41:42:9A:86:8B:AA).
 - Spec rules: work incrementally; no HTTP API or frontend until the M1 audio pipeline works; never claim
   Bluetooth capabilities that have not been tested.

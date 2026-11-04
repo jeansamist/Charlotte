@@ -6,6 +6,9 @@
 # - backs up /etc/bluetooth/main.conf once (main.conf.charlotte.bak)
 # - sets "Class = 0x240414" in [General] (BlueZ keeps only the major/minor bits;
 #   the Audio/Rendering service bits come from the A2DP sink profile)
+# - disables BlueZ's "hostname" plugin with a systemd drop-in: that plugin reads the
+#   chassis type (laptop/desktop) from systemd-hostnamed and OVERWRITES the class
+#   with Computer/Laptop after main.conf is applied
 # - restarts bluetooth (connected devices reconnect)
 # The device NAME is set by audio-server itself from bluetooth.name in its config.
 set -euo pipefail
@@ -23,6 +26,14 @@ else
   sudo sed -i "/^\[General\]/a Class = $CLASS" "$CONF"
 fi
 echo "main.conf: $(grep -E '^Class' "$CONF")"
+
+BLUETOOTHD=$(systemctl cat bluetooth | awk -F= '/^ExecStart=\//{print $2; exit}' | awk '{print $1}')
+BLUETOOTHD=${BLUETOOTHD:-/usr/libexec/bluetooth/bluetoothd}
+DROPIN=/etc/systemd/system/bluetooth.service.d/charlotte.conf
+sudo mkdir -p "$(dirname "$DROPIN")"
+printf '[Service]\nExecStart=\nExecStart=%s --noplugin=hostname\n' "$BLUETOOTHD" | sudo tee "$DROPIN" >/dev/null
+echo "systemd drop-in: $DROPIN ($BLUETOOTHD --noplugin=hostname)"
+sudo systemctl daemon-reload
 
 sudo systemctl restart bluetooth
 sleep 2

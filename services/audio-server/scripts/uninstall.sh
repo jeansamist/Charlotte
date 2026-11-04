@@ -7,4 +7,6 @@ systemctl --user daemon-reload
 rm -f "$HOME/.config/wireplumber/wireplumber.conf.d/51-charlotte-bluez.conf"
 systemctl --user restart wireplumber || true
 [ "${1:-}" = "--purge" ] && rm -rf "$HOME/.config/charlotte/audio-server.toml"
+echo "Bluetooth system setup (if done) is kept. To undo it:"
+echo "  sudo rm /etc/systemd/system/bluetooth.service.d/charlotte.conf && sudo cp /etc/bluetooth/main.conf.charlotte.bak /etc/bluetooth/main.conf && sudo systemctl daemon-reload && sudo systemctl restart bluetooth"
 echo "audio-server removed (system packages were left installed)."

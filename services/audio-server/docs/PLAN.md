@@ -94,6 +94,15 @@ services/audio-server/scripts/bt-sink.sh 180      # pair phone A, then phone B
 Pass criteria: both phones audible at the same time on the speaker. Status shows 2 inputs `streaming=true`,
 underruns not growing, CPU < 5% of one core.
 
+## Findings from device tests (2026-11-04)
+- MacBook → Debian (A2DP, SBC) → mixer → soundcore R50i earbuds: **works**. Audio is routed correctly.
+- WirePlumber `bluez5.loopback` headset-mic proxies must be ignored (see `app.rs`).
+- **Class of Device:** iOS hides devices whose class is Computer. `Class=` in main.conf is overwritten
+  by BlueZ's *hostname* plugin (chassis = laptop). Fix: `bluetoothd --noplugin=hostname` (systemd drop-in in
+  `scripts/setup-bluetooth.sh`).
+- A process started with `&` from a non-interactive shell ignores SIGINT. Stop the mixer with SIGTERM
+  (systemd does this).
+
 ## Risks / unknowns
 - **Several A2DP sources on one AX201.** BlueZ allows several connected devices. Bandwidth for 2 SBC/AAC
   streams is usually fine on Intel combo chips, but Wi-Fi coexistence can cause dropouts. Must be measured.
