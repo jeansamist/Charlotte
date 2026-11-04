@@ -2,4 +2,5 @@ packages:
   - apps/gateway
   - apps/web
 onlyBuiltDependencies:
+  - esbuild
   - sharp
