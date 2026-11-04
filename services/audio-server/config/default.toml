@@ -42,5 +42,15 @@ device = "default"
 # With device = "default": any Bluetooth headphones/speaker that connects becomes the output.
 follow_bluetooth = true
 
+[ducking]
+# Smart mixing: when a device starts playing, the others are lowered so it can
+# be heard, then restored when it stops.
+enabled = true
+level_db = -18.0       # level of the other devices meanwhile
+threshold_db = -50.0   # "playing" = louder than this
+hold_ms = 2000         # silence before a device gives the foreground back
+attack_ms = 300        # fade down
+release_ms = 1500      # fade back up
+
 [logging]
 level = "info"

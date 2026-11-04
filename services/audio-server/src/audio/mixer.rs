@@ -43,6 +43,12 @@ pub struct ChannelControl {
     pub drift_skips: AtomicU64,
     /// Interleaved samples currently buffered.
     pub buffered: AtomicU32,
+    /// Making sound right now (smart mixing activity detector).
+    pub active: AtomicBool,
+    /// Lowered because another input is in the foreground.
+    pub ducked: AtomicBool,
+    /// Current ducking gain (1 = full level).
+    pub duck_gain: AtomicF32,
 }
 
 impl ChannelControl {
@@ -57,6 +63,9 @@ impl ChannelControl {
             overruns: AtomicU64::new(0),
             drift_skips: AtomicU64::new(0),
             buffered: AtomicU32::new(0),
+            active: AtomicBool::new(false),
+            ducked: AtomicBool::new(false),
+            duck_gain: AtomicF32::new(1.0),
         }
     }
 }

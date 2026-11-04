@@ -73,7 +73,7 @@ pub fn run(cfg: Config, opts: RunOptions) -> anyhow::Result<()> {
         }
     }
 
-    let (handle, engine) = new_engine(&cfg.audio);
+    let (handle, engine) = new_engine(&cfg.audio, &cfg.ducking);
     let shared = Arc::new(Shared {
         started_at: std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -265,12 +265,19 @@ fn on_global(state: &Rc<RefCell<State>>, g: &GlobalObject<&DictRef>, capture_bt:
                     if st.captures.contains_key(&id) || st.ignored.contains(&id) {
                         return; // already decided (info is re-sent on every change)
                     }
-                    let loopback = info
-                        .props()
+                    let props = info.props();
+                    let loopback = props
                         .and_then(|p| p.get("bluez5.loopback"))
                         .is_some_and(|v| v == "true");
+                    // Only music profiles: A2DP (classic) or BAP (LE Audio). Capturing a
+                    // hands-free (HFP/HSP) stream would keep the device in call mode.
+                    let profile = props.and_then(|p| p.get("api.bluez5.profile")).unwrap_or("").to_owned();
+                    let music = profile.starts_with("a2dp") || profile.starts_with("bap");
                     if loopback {
                         info!(id, device = %description, "ignoring headset microphone proxy (bluez5.loopback)");
+                        st.ignored.insert(id);
+                    } else if !music {
+                        warn!(id, device = %description, %profile, "ignoring non-music Bluetooth stream (call profile). Install the latest WirePlumber config and reconnect the device.");
                         st.ignored.insert(id);
                     } else {
                         start_capture(&mut st, id, &name, &description);

@@ -9,6 +9,7 @@ set -euo pipefail
 SECS=${1:-180}
 pgrep -x audio-server >/dev/null || { echo "audio-server is not running: start it first (it answers pairing requests)."; exit 1; }
 bluetoothctl power on >/dev/null
+bluetoothctl pairable-timeout "$SECS" >/dev/null 2>&1 || true
 bluetoothctl pairable on >/dev/null
 bluetoothctl discoverable-timeout "$SECS" >/dev/null
 bluetoothctl discoverable on >/dev/null

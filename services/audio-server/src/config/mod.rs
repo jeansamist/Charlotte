@@ -14,7 +14,39 @@ pub struct Config {
     pub audio: AudioConfig,
     pub bluetooth: BluetoothConfig,
     pub output: OutputConfig,
+    pub ducking: DuckingConfig,
     pub logging: LoggingConfig,
+}
+
+/// Smart mixing: when an input starts making sound, the others are lowered,
+/// and restored when it stops.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct DuckingConfig {
+    pub enabled: bool,
+    /// Level of the other inputs while one is in the foreground (dB, ≤ 0).
+    pub level_db: f32,
+    /// An input is "making sound" above this RMS level (dBFS).
+    pub threshold_db: f32,
+    /// Silence needed before an input loses the foreground (ms).
+    pub hold_ms: u32,
+    /// Fade-down time (ms).
+    pub attack_ms: u32,
+    /// Fade-up time when restoring (ms).
+    pub release_ms: u32,
+}
+
+impl Default for DuckingConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            level_db: -18.0,
+            threshold_db: -50.0,
+            hold_ms: 2000,
+            attack_ms: 300,
+            release_ms: 1500,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -191,6 +223,16 @@ impl Config {
         }
         if !bt.adapter.starts_with("hci") || bt.adapter[3..].parse::<u16>().is_err() {
             errs.push(format!("bluetooth.adapter = \"{}\" must look like \"hci0\"", bt.adapter));
+        }
+        let d = &self.ducking;
+        if !(-60.0..=0.0).contains(&d.level_db) {
+            errs.push(format!("ducking.level_db = {} must be between -60 and 0", d.level_db));
+        }
+        if !(-90.0..=-10.0).contains(&d.threshold_db) {
+            errs.push(format!("ducking.threshold_db = {} must be between -90 and -10", d.threshold_db));
+        }
+        if d.hold_ms > 30_000 || d.attack_ms > 10_000 || d.release_ms > 10_000 {
+            errs.push("ducking: hold_ms ≤ 30000, attack_ms and release_ms ≤ 10000".into());
         }
         if self.output.device.trim().is_empty() {
             errs.push("output.device must not be empty (use \"default\")".into());

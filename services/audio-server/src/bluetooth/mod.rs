@@ -33,6 +33,8 @@ trait Adapter1 {
     fn discoverable_timeout(&self) -> zbus::Result<u32>;
     #[zbus(property)]
     fn set_discoverable_timeout(&self, value: u32) -> zbus::Result<()>;
+    #[zbus(property)]
+    fn set_pairable_timeout(&self, value: u32) -> zbus::Result<()>;
     fn remove_device(&self, device: &zbus::ObjectPath<'_>) -> zbus::Result<()>;
 }
 
@@ -167,11 +169,15 @@ pub fn set_pairing_window(adapter: &str, seconds: Option<u32>) -> Result<(), Blu
         let a = adapter_proxy(&conn, adapter).await?;
         match seconds {
             Some(s) => {
+                a.set_pairable_timeout(s).await?;
                 a.set_pairable(true).await?;
                 a.set_discoverable_timeout(s).await?;
                 a.set_discoverable(true).await?;
             }
-            None => a.set_discoverable(false).await?,
+            None => {
+                a.set_discoverable(false).await?;
+                a.set_pairable(false).await?;
+            }
         }
         Ok(())
     })

@@ -35,6 +35,8 @@ trait Device1 {
     #[zbus(property)]
     fn trusted(&self) -> zbus::Result<bool>;
     #[zbus(property)]
+    fn paired(&self) -> zbus::Result<bool>;
+    #[zbus(property)]
     fn set_trusted(&self, value: bool) -> zbus::Result<()>;
 }
 
@@ -139,8 +141,15 @@ impl Agent {
     ) -> Result<(), AgentError> {
         let dev = self.device(conn, &device).await?;
         let trusted = dev.trusted().await.unwrap_or(false);
+        // Pairing is only possible while the pairing window is open (Pairable has the
+        // same timeout), so a paired device was accepted then: trust it.
+        let paired = dev.paired().await.unwrap_or(false);
         let name = dev.alias().await.unwrap_or_default();
-        if (trusted && self.accept_trusted) || self.pairing_window_open(conn).await {
+        if paired && !trusted {
+            dev.set_trusted(true).await?;
+            info!(device = %name, "paired device trusted");
+        }
+        if ((trusted || paired) && self.accept_trusted) || self.pairing_window_open(conn).await {
             info!(device = %name, %uuid, "service authorized");
             Ok(())
         } else {
@@ -168,9 +177,10 @@ pub fn spawn_agent(adapter: &str, accept_trusted: bool) -> std::io::Result<JoinH
             let mgr = AgentManager1Proxy::new(&conn).await?;
             mgr.register_agent(&path, CAPABILITY).await?;
             mgr.request_default_agent(&path).await?;
+            // New devices may pair only during the pairing window (see set_pairing_window).
             let adapter = Adapter1Proxy::builder(&conn).path(adapter_path.as_str()).build().await?;
-            if !adapter.pairable().await? {
-                adapter.set_pairable(true).await?;
+            if !adapter.discoverable().await? && adapter.pairable().await? {
+                adapter.set_pairable(false).await?;
             }
             info!(capability = CAPABILITY, "pairing agent registered (default agent)");
             std::future::pending::<()>().await;

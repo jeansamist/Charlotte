@@ -70,6 +70,7 @@ pub fn router(shared: Arc<Shared>) -> Router {
         .route("/api/mixer/channels/{slot}/mute", put(channel_mute))
         .route("/api/mixer/master/volume", put(master_volume))
         .route("/api/mixer/master/mute", put(master_mute))
+        .route("/api/mixer/ducking", put(set_ducking))
         .route("/api/outputs", get(outputs))
         .route("/api/outputs/current", get(outputs).put(set_output))
         .route("/api/bluetooth", get(bt_status))
@@ -130,6 +131,9 @@ fn mixer_json(s: &Shared) -> Value {
                 "underruns": c.underruns.load(Relaxed),
                 "overruns": c.overruns.load(Relaxed),
                 "drift_skips": c.drift_skips.load(Relaxed),
+                "active": c.active.load(Relaxed),
+                "ducked": c.ducked.load(Relaxed),
+                "duck_gain": c.duck_gain.get(),
             })
         })
         .collect();
@@ -140,6 +144,10 @@ fn mixer_json(s: &Shared) -> Value {
             "peak": m.peak.get(),
             "limiter_gain": m.limiter_gain.get(),
             "limiter_enabled": m.limiter_enabled.load(Relaxed),
+        },
+        "ducking": {
+            "enabled": m.ducking_enabled.load(Relaxed),
+            "level_db": m.ducking_level_db.get(),
         },
         "channels": channels,
     })
@@ -194,6 +202,25 @@ async fn master_volume(State(s): State<AppState>, Json(b): Json<VolumeBody>) -> 
 
 async fn master_mute(State(s): State<AppState>, Json(b): Json<MuteBody>) -> ApiResult {
     s.master.muted.store(b.muted, Relaxed);
+    Ok(Json(mixer_json(&s)))
+}
+
+#[derive(Deserialize)]
+struct DuckingBody {
+    enabled: Option<bool>,
+    level_db: Option<f32>,
+}
+
+async fn set_ducking(State(s): State<AppState>, Json(b): Json<DuckingBody>) -> ApiResult {
+    if let Some(l) = b.level_db {
+        if !(l.is_finite() && (-60.0..=0.0).contains(&l)) {
+            return Err(bad_request("level_db must be between -60 and 0"));
+        }
+        s.master.ducking_level_db.set(l);
+    }
+    if let Some(e) = b.enabled {
+        s.master.ducking_enabled.store(e, Relaxed);
+    }
     Ok(Json(mixer_json(&s)))
 }
 
