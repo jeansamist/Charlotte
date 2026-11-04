@@ -13,7 +13,7 @@ about the project (purpose, stack, structure, commands, conventions, decisions).
   and a custom-feature/plugin system for capabilities added later.
 - **Tech mix:** Rust, Python, Node.js, React, React Native, PostgreSQL, AWS, MCP, Home Assistant, AI voice providers, LLMs.
   It is a monorepo with many sub-projects.
-- **Status:** Architecture proposal stage (2026-11-04). See `docs/architecture.md` (draft v0.2. Hardware, LLM, voice and AWS choices validated).
+- **Status:** Architecture proposal stage (2026-11-04). See `docs/architecture.md` (draft v0.3. Main choices validated, see Decisions log).
 
 ## Environment
 - Code lives on a Debian machine, accessed over SSH from the owner's Mac.
@@ -28,7 +28,12 @@ about the project (purpose, stack, structure, commands, conventions, decisions).
 - 2026-11-04 — LLMs: cloud, several models/providers.
 - 2026-11-04 — Voice: cloud providers, several models.
 - 2026-11-04 — AWS: use managed services (AI, auth, storage…) to avoid boilerplate.
-- Pending — NATS vs MQTT, offline fallback, remote-access method, AWS account/region.
+- 2026-11-04 — Architecture style: keep **microservices on one box** (v0.2+). "Edge + cloud" and "core + plugins" were proposed and rejected.
+- 2026-11-04 — Event bus: **NATS**.
+- 2026-11-04 — **Basic commands must work offline**: local STT/TTS fallback (faster-whisper, Piper) and a local intent engine in `brain`.
+- 2026-11-04 — Remote access through **our own mobile app** via AWS IoT Core relay + Cognito.
+- 2026-11-04 — AWS region: **US (default `us-east-1`), configurable**.
+- Pending — first languages to support, default wake word name.
 
 ## Sync workflow (Mac <-> GitHub <-> Debian)
 - GitHub remote: `git@github-jeansamist:jeansamist/Charlotte.git` (branch `main`), same on both machines.
@@ -43,6 +48,7 @@ Proposed, pending owner validation. Full details are in `docs/architecture.md`.
 - Rust: `supervisor` (CLI/installer), `audio-server`, `camera`.
 - Python: `brain` (LLM agent), `voice` (wake word, STT, TTS), `vision` (faces/presence).
 - Node/TS: `gateway` API. React `web`, React Native `mobile`.
+- Offline: local intent engine + local STT/TTS fallback. Remote: mobile app ↔ AWS IoT Core ↔ box (outbound only).
 - NATS event bus + typed contracts (`packages/contracts`). PostgreSQL + pgvector.
 - Cloud-powered: LLMs on **Amazon Bedrock** (several models), agent built with **Strands Agents**.
   Cloud STT/TTS (Transcribe, Polly, ElevenLabs…). Wake word + VAD stay local.

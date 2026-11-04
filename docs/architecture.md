@@ -1,4 +1,4 @@
-# Charlotte — Architecture (proposal v0.2, 2026-11-04)
+# Charlotte — Architecture (proposal v0.3, 2026-11-04)
 
 > Status: **draft for discussion**. Nothing here is implemented yet.
 
@@ -14,9 +14,13 @@ A self-hosted, installable AI home assistant for Linux (an Alexa / Google Home y
 |---|---|
 | Hardware | x86_64 Debian PC, like the dev box (12 cores, 15 GB RAM). No ARM / Raspberry Pi target for now. |
 | LLM | **Cloud models**, several providers/models. Selected per use case in config. |
-| Voice (STT/TTS) | **Cloud providers**, several models. Wake word + VAD stay **local**: always-on audio is never streamed to the cloud. |
+| Voice (STT/TTS) | **Cloud providers**, several models. Wake word + VAD stay **local**: always-on audio is never streamed to the cloud. Local STT/TTS only as offline fallback. |
 | AWS | Use **managed AWS services** to avoid boilerplate (AI, auth, storage, notifications…). |
-| Event bus | NATS (default, not yet confirmed by the owner). |
+| Architecture style | **Microservices on one box**: independent services per language on NATS (compared with "edge + cloud" and "core + plugins", and chosen over both). |
+| Event bus | **NATS** (confirmed). |
+| Offline | **Basic commands must work without internet**: local fallback for STT, intents and TTS (see §4.1). |
+| Remote access | Through **our own mobile app**, via an AWS relay (see §4.2). |
+| AWS region | **US region by default (`us-east-1`), configurable** (`aws.region` in config and the CDK context). |
 
 ### How AWS is used (proposed)
 | Need | AWS service | Why |
@@ -76,6 +80,21 @@ A self-hosted, installable AI home assistant for Linux (an Alexa / Google Home y
 mic → **audio-server** → **voice** (wake word "<name>" → VAD → STT) → **brain** (LLM + tools via MCP)
 → **voice** (TTS) → **audio-server** (lowers the music while the assistant speaks) → speaker.
 
+### 4.1 Offline mode (no internet)
+- `voice` keeps **local fallback adapters**: faster-whisper (small model, CPU) for STT and Piper for TTS.
+  These are used only when the cloud cannot be reached.
+- `brain` has a **local intent engine**: fixed phrases per language, such as "turn on/off the <room> light",
+  "set temperature to <n>", "who is home", "stop the music". These map directly to skill calls
+  (Home Assistant, audio, presence) without an LLM.
+- Connectivity is published on the bus (`system.connectivity`). Services switch to fallback automatically,
+  and the assistant tells the user it is in limited mode.
+
+### 4.2 Remote access (mobile app)
+- The box keeps one **outbound** TLS connection to **AWS IoT Core** (device certificate, nothing exposed on the router).
+- The mobile app signs in with **Cognito** and talks to the box through IoT Core (MQTT over WSS) for commands and events.
+- On the LAN, the app connects to the `gateway` directly (faster, works offline).
+- A NATS ↔ IoT Core bridge in `gateway` forwards only an allow-listed set of subjects.
+
 ## 5. Components
 
 | Component | Lang | Responsibility |
@@ -91,7 +110,7 @@ mic → **audio-server** → **voice** (wake word "<name>" → VAD → STT) → 
 | `apps/mobile` | React Native | Remote control, chat, notifications, camera view, presence. |
 | `skills/*` | any | MCP servers: `home-assistant`, `camera`, `audio`, `presence`, custom ones. |
 | `packages/contracts` | protobuf/JSON Schema | Event and API schemas. Generates code for rs/py/ts. |
-| `infra/aws` | CDK (TS) | Cognito, Bedrock access (IAM), S3, SNS, remote access. |
+| `infra/aws` | CDK (TS) | Cognito, Bedrock access (IAM), IoT Core relay, S3, SNS. Region is configurable. |
 
 ## 6. Data
 - **PostgreSQL** (single local instance): accounts, households, devices, settings, conversation
@@ -131,8 +150,5 @@ as the single entry point (`just dev`, `just test`, `just build`, `just package`
 6. Mobile app, AWS remote access, installer/packaging.
 
 ## 11. Open questions
-- Event bus: NATS (proposed) vs MQTT (native in HA ecosystem). An MQTT bridge is possible either way.
-- Offline behaviour: when the internet is down, should basic commands (lights via HA) still work?
-  This would need a small local intent fallback.
-- Remote access from outside the home: Cognito + a cloud relay (API Gateway WebSocket / IoT Core), or a VPN such as Tailscale?
-- AWS account and region to use (Bedrock model availability differs by region).
+- Which languages to support first (offline intent phrases are written per language)?
+- Default wake word name for first boot?
