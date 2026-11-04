@@ -66,6 +66,15 @@ Plan and milestones: `services/audio-server/docs/PLAN.md`. M1 = PoC: 2 phones ov
 - Real-time rule: never allocate, lock or block in PipeWire `process` callbacks (rtrb buffers, atomics, command queue).
 - `bluez5.media-source-role = input` (WirePlumber rule) is required. Otherwise phones play straight to the speakers.
 - PipeWire runs **per user** → the service is a systemd **user** unit, and the scripts must not run as root.
+- Owner requirements (2026-11-04):
+  - **Any Bluetooth output device must work** (AirPods, earbuds, speakers…). Planned: an automatic
+    "bluetooth" output mode that follows whichever BT sink is connected and switches on connect/disconnect.
+  - **Custom Bluetooth name** (`bluetooth.name`, default "Charlotte", set as the adapter alias over D-Bus).
+  - Debian must appear on the Mac as an **audio output device** → Class of Device must be Audio/Video
+    (`scripts/setup-bluetooth.sh` sets `Class = 0x240414` in /etc/bluetooth/main.conf, needs sudo).
+- WirePlumber creates `bluez_input.<addr with colons>` nodes with `bluez5.loopback=true` for headset mics.
+  Never capture them (it switches the headset to HFP). The mixer inspects full node info before capturing.
+- Test setup: MacBook → (A2DP) → Debian mixer → soundcore R50i earbuds (41:42:9A:86:8B:AA).
 - Spec rules: work incrementally; no HTTP API or frontend until the M1 audio pipeline works; never claim
   Bluetooth capabilities that have not been tested.
 

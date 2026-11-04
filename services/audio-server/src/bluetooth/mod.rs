@@ -52,7 +52,8 @@ pub fn apply_identity(adapter: &str, name: &str) -> Result<AdapterStatus, Blueto
         }
         Ok(AdapterStatus {
             address: proxy.address().await?,
-            alias: proxy.alias().await?,
+            // BlueZ may still report the old alias right after the change.
+            alias: if renamed { name.to_owned() } else { proxy.alias().await? },
             class: proxy.class().await?,
             powered: proxy.powered().await?,
             renamed,
