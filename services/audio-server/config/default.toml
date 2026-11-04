@@ -25,6 +25,9 @@ limiter_threshold = 0.95
 
 [bluetooth]
 enabled = true
+# Name shown on phones / Macs when they look for Bluetooth devices.
+name = "Charlotte"
+adapter = "hci0"
 auto_accept_trusted_devices = true
 # Automatically add every new Bluetooth audio source to the mixer.
 auto_connect_sources = true

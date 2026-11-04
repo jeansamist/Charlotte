@@ -23,3 +23,5 @@ thiserror = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 clap = { version = "4", features = ["derive"] }
+# BlueZ D-Bus API (adapter name / class). zbus 6 has no blocking module: we use zbus::block_on.
+zbus = { version = "6", default-features = false, features = ["default-rt", "proxy"] }

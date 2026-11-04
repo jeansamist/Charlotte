@@ -60,6 +60,10 @@ pub fn run(cfg: Config, opts: RunOptions) -> anyhow::Result<()> {
         .context("connect to PipeWire (is the user's pipewire service running?)")?;
     let registry = core.get_registry_rc().context("get PipeWire registry")?;
 
+    if cfg.bluetooth.enabled {
+        setup_bluetooth_identity(&cfg);
+    }
+
     let (handle, engine) = new_engine(&cfg.audio);
     let _playback = connect_playback(&core, engine, &cfg).context("create output stream")?;
     info!(
@@ -143,6 +147,36 @@ pub fn run(cfg: Config, opts: RunOptions) -> anyhow::Result<()> {
     st.sims.clear();
     info!("stopped");
     Ok(())
+}
+
+fn setup_bluetooth_identity(cfg: &Config) {
+    use crate::bluetooth::{apply_identity, is_audio_class, major_class_name};
+    let bt = &cfg.bluetooth;
+    match apply_identity(&bt.adapter, &bt.name) {
+        Ok(a) => {
+            info!(
+                adapter = %bt.adapter,
+                address = %a.address,
+                name = %a.alias,
+                renamed = a.renamed,
+                class = format!("0x{:06x} ({})", a.class, major_class_name(a.class)),
+                powered = a.powered,
+                "Bluetooth identity"
+            );
+            if !is_audio_class(a.class) {
+                warn!(
+                    "Bluetooth class is {} — Macs and phones will not list \"{}\" as a speaker. \
+                     Run services/audio-server/scripts/setup-bluetooth.sh once (sudo).",
+                    major_class_name(a.class),
+                    a.alias
+                );
+            }
+            if !a.powered {
+                warn!("Bluetooth adapter {} is powered off", bt.adapter);
+            }
+        }
+        Err(e) => warn!(adapter = %bt.adapter, error = %e, "cannot configure Bluetooth adapter"),
+    }
 }
 
 fn on_global(state: &Rc<RefCell<State>>, g: &GlobalObject<&DictRef>, capture_bt: bool) {

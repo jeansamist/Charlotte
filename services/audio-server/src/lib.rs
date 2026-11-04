@@ -7,11 +7,14 @@
 //! - [`monitoring`]: CPU / memory sampling.
 //! - [`app`]: wires everything to the PipeWire main loop.
 //!
-//! Bluetooth pairing itself is handled by BlueZ (see `scripts/bt-sink.sh`);
-//! the D-Bus based Bluetooth manager comes in a later milestone.
+//! - [`bluetooth`]: adapter identity (name, class) over BlueZ D-Bus.
+//!
+//! Pairing is handled by BlueZ (see `scripts/bt-sink.sh`). The full D-Bus
+//! Bluetooth manager (pairing agent, trust list, reconnects) comes in milestone 4.
 
 pub mod app;
 pub mod audio;
+pub mod bluetooth;
 pub mod config;
 pub mod devices;
 pub mod errors;

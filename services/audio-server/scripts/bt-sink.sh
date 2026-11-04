@@ -6,7 +6,7 @@
 set -euo pipefail
 SECS=${1:-180}
 bluetoothctl power on >/dev/null
-echo "Discoverable as '$(bluetoothctl show | awk -F': ' '/Alias/{print $2}')' for ${SECS}s. Pair from your phone now."
+echo "Discoverable as '$(bluetoothctl show | awk -F': ' '/Alias/{print $2}')' for ${SECS}s. Pair from your phone or Mac now."
 
 # Keep an agent registered (Just Works pairing) while we are discoverable.
 { echo "agent NoInputNoOutput"; echo "default-agent"; echo "pairable on";

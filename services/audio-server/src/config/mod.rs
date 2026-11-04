@@ -76,6 +76,10 @@ impl AudioConfig {
 #[serde(default, deny_unknown_fields)]
 pub struct BluetoothConfig {
     pub enabled: bool,
+    /// Name other devices see when they scan (the BlueZ adapter alias).
+    pub name: String,
+    /// BlueZ adapter to use (`hciN`).
+    pub adapter: String,
     pub auto_accept_trusted_devices: bool,
     pub auto_connect_sources: bool,
 }
@@ -84,6 +88,8 @@ impl Default for BluetoothConfig {
     fn default() -> Self {
         Self {
             enabled: true,
+            name: "Charlotte".into(),
+            adapter: "hci0".into(),
             auto_accept_trusted_devices: true,
             auto_connect_sources: true,
         }
@@ -171,6 +177,13 @@ impl Config {
                 "audio.limiter_threshold = {} must be in (0.0, 1.0]",
                 a.limiter_threshold
             ));
+        }
+        let bt = &self.bluetooth;
+        if bt.name.trim().is_empty() || bt.name.len() > 248 {
+            errs.push("bluetooth.name must be 1 to 248 bytes long".into());
+        }
+        if !bt.adapter.starts_with("hci") || bt.adapter[3..].parse::<u16>().is_err() {
+            errs.push(format!("bluetooth.adapter = \"{}\" must look like \"hci0\"", bt.adapter));
         }
         if self.output.device.trim().is_empty() {
             errs.push("output.device must not be empty (use \"default\")".into());
