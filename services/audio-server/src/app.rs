@@ -62,6 +62,12 @@ pub fn run(cfg: Config, opts: RunOptions) -> anyhow::Result<()> {
 
     if cfg.bluetooth.enabled {
         setup_bluetooth_identity(&cfg);
+        if let Err(e) = crate::bluetooth::agent::spawn_agent(
+            &cfg.bluetooth.adapter,
+            cfg.bluetooth.auto_accept_trusted_devices,
+        ) {
+            warn!(error = %e, "cannot start pairing agent thread");
+        }
     }
 
     let (handle, engine) = new_engine(&cfg.audio);

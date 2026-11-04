@@ -5,6 +5,8 @@
 //! is Audio/Video. The class can only be set by root in /etc/bluetooth/main.conf
 //! (see `scripts/setup-bluetooth.sh`), so we only report it here.
 
+pub mod agent;
+
 use thiserror::Error;
 
 #[zbus::proxy(interface = "org.bluez.Adapter1", default_service = "org.bluez")]
@@ -19,6 +21,12 @@ trait Adapter1 {
     fn address(&self) -> zbus::Result<String>;
     #[zbus(property)]
     fn powered(&self) -> zbus::Result<bool>;
+    #[zbus(property)]
+    fn discoverable(&self) -> zbus::Result<bool>;
+    #[zbus(property)]
+    fn pairable(&self) -> zbus::Result<bool>;
+    #[zbus(property)]
+    fn set_pairable(&self, value: bool) -> zbus::Result<()>;
 }
 
 #[derive(Debug, Error)]
