@@ -1,7 +1,5 @@
-# presence
+# skill: presence
 
-> **Status: mock / not implemented yet.** This folder is a placeholder from the architecture
-> (see `docs/architecture.md`). The first component being built is `services/audio-server`.
+> **Status: planned, not implemented.** See [`skills/README.md`](../README.md).
 
-- **Language / tech:** MCP server
-- **Role:** Exposes who is home as MCP tools.
+Exposes who is home, and since when, as MCP tools.

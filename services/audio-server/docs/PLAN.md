@@ -50,10 +50,10 @@ Key decisions:
 ## Milestones
 | # | Goal | Status |
 |---|---|---|
-| **M1** | **PoC**: A2DP sink, 2 simultaneous phones, each captured in Rust, mixed, played on the laptop speaker. Simulated inputs. | Code written, waiting for build deps + device test |
-| M2 | HTTP + WebSocket API (axum/tokio on its own thread, talks to `EngineHandle` via channels). Output switching at runtime. | – |
+| **M1** | **PoC**: A2DP sink, 2 simultaneous phones, each captured in Rust, mixed, played on the laptop speaker. Simulated inputs. | ✅ Done: Mac → mixer → Bluetooth earbuds |
+| M2 | HTTP + WebSocket API (axum/tokio on its own thread, talks to `EngineHandle` via channels). Output switching at runtime. | ✅ HTTP API, output switching (default sink), follow Bluetooth output, smart mixing (ducking). WebSocket not yet: the GUI polls |
 | M3 | Robustness: stream recovery, backend restart (PipeWire restart → reconnect), adaptive drift correction, benchmarks 2/4/6/10 sources. | – |
-| M4 | Bluetooth manager over D-Bus (`zbus`): discovery, pairing agent, trust list, auto-reconnect, adapter capability report. | – |
+| M4 | Bluetooth manager over D-Bus (`zbus`): discovery, pairing agent, trust list, auto-reconnect, adapter capability report. | 🟡 Pairing agent, pairing window, name, device list and forget done. Auto-reconnect and capability report remaining |
 | M5 | Packaging: .deb, NATS events for Charlotte, `skills/audio` MCP server. | – |
 
 ## M1 — module responsibilities

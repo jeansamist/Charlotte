@@ -1,7 +1,5 @@
-# home-assistant
+# skill: home-assistant
 
-> **Status: mock / not implemented yet.** This folder is a placeholder from the architecture
-> (see `docs/architecture.md`). The first component being built is `services/audio-server`.
+> **Status: planned, not implemented.** See [`skills/README.md`](../README.md).
 
-- **Language / tech:** MCP server
-- **Role:** Exposes Home Assistant entities and services as MCP tools.
+Exposes Home Assistant entities and services (lights, switches, climate, sensors, scenes) as MCP tools, through the Home Assistant WebSocket API with a long-lived token stored by the gateway.

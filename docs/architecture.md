@@ -1,6 +1,13 @@
 # Charlotte — Architecture (proposal v0.3, 2026-11-04)
 
-> Status: **draft for discussion**. Nothing here is implemented yet.
+> Status: **architecture v0.3 validated; partially implemented** (2026-11-04).
+>
+> | Implemented | Planned |
+> |---|---|
+> | `services/audio-server` (mixer, smart mixing, Bluetooth, local API) · `apps/gateway` (local login, users, settings) · `apps/web` · `scripts/install.sh` | brain, voice, vision, camera, supervisor, skills, mobile, contracts, NATS, AWS |
+>
+> Differences from the plan so far: login is **local username/password** for now (Cognito later). The gateway
+> talks to the audio-server over a local HTTP API, not NATS yet. PostgreSQL runs in an existing Docker container.
 
 ## 1. Goal
 A self-hosted, installable AI home assistant for Linux (an Alexa / Google Home you own).

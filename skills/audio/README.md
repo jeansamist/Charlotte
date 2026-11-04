@@ -1,7 +1,5 @@
-# audio
+# skill: audio
 
-> **Status: mock / not implemented yet.** This folder is a placeholder from the architecture
-> (see `docs/architecture.md`). The first component being built is `services/audio-server`.
+> **Status: planned, not implemented.** See [`skills/README.md`](../README.md).
 
-- **Language / tech:** MCP server
-- **Role:** Exposes `services/audio-server` (volumes, mute, outputs) as MCP tools.
+Exposes `services/audio-server` (volume, mute, output, pairing) as MCP tools, so the assistant can answer "lower the music" or "play on the living-room speaker".

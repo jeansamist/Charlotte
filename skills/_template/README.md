@@ -1,7 +1,5 @@
-# _template
+# skill: _template
 
-> **Status: mock / not implemented yet.** This folder is a placeholder from the architecture
-> (see `docs/architecture.md`). The first component being built is `services/audio-server`.
+> **Status: planned, not implemented.** See [`skills/README.md`](../README.md).
 
-- **Language / tech:** MCP server
-- **Role:** Template for writing a custom skill.
+A template for writing a new skill: MCP server skeleton, manifest (name, description, permissions), tests.

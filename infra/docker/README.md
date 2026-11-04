@@ -1,7 +1,8 @@
-# docker
+# infra/docker
 
-> **Status: mock / not implemented yet.** This folder is a placeholder from the architecture
-> (see `docs/architecture.md`). The first component being built is `services/audio-server`.
+> **Status: planned, not implemented.**
 
-- **Language / tech:** Docker Compose
-- **Role:** Dev-only stack: PostgreSQL + NATS.
+An optional Docker Compose stack for development: PostgreSQL (+ pgvector) and NATS.
+
+Today the Debian machine uses its **existing** PostgreSQL container `postgres_database` (database and role
+`charlotte`, created by `scripts/install.sh`). NATS is not needed yet.

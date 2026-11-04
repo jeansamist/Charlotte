@@ -117,6 +117,8 @@ Root `Cargo.toml` is a workspace. Dev profile uses `debug = "line-tables-only"` 
 ## Conventions
 _TBD_
 
-## Documentation to write (pending owner input)
-- [ ] `README.md`
-- [ ] Developer guide
+## Documentation
+- Root `README.md`, `docs/DEVELOPER_GUIDE.md`, `docs/OPERATIONS.md`, `docs/architecture.md`.
+- Each component has a README (planned ones state "planned, not implemented"). API references:
+  `services/audio-server/docs/API.md`, `apps/gateway/docs/API.md`. DB: `apps/gateway/docs/DATABASE.md`.
+- **Keep the docs in sync with the code**: update the matching README/API doc in the same commit as the change.
