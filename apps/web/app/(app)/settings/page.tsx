@@ -1,56 +1,130 @@
 "use client";
+import { AiMagicIcon, BluetoothIcon, FloppyDiskIcon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
+import { PageHeader } from "@/components/page-header";
 import { useUser } from "@/components/session";
-import { Alert, Button, Card, Input, Select } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { api, type Settings } from "@/lib/api";
+import { attempt } from "@/lib/errors";
 import { usePoll } from "@/lib/hooks";
 
 export default function SettingsPage() {
   const admin = useUser().role === "admin";
   const remote = usePoll<{ settings: Settings }>("/api/settings");
   const [form, setForm] = useState<Settings>();
-  const [msg, setMsg] = useState<{ tone: "ok" | "warn" | "danger"; text: string }>();
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (remote.data && !form) setForm(remote.data.settings);
   }, [remote.data, form]);
 
-  if (!form) return null;
-  const set = (k: keyof Settings, v: string) => setForm({ ...form, [k]: v } as Settings);
+  if (!form)
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-40" />
+        <Skeleton className="h-56 w-full rounded-xl" />
+      </div>
+    );
+
+  const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setForm({ ...form, [k]: v });
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    setMsg(undefined);
-    try {
+    setSaving(true);
+    await attempt(async () => {
       const r = await api<{ settings: Settings; warning?: string }>("/api/settings", { method: "PUT", body: form });
       setForm(r.settings);
-      setMsg(r.warning ? { tone: "warn", text: r.warning } : { tone: "ok", text: "Settings saved." });
-    } catch (err) {
-      setMsg({ tone: "danger", text: (err as Error).message });
-    }
+      if (r.warning) toast.warning(r.warning);
+      else toast.success("Settings saved");
+    });
+    setSaving(false);
   }
 
   return (
     <>
-      <div>
-        <h1 className="text-2xl font-semibold">Settings</h1>
-        <p className="text-sm text-muted">{admin ? "Only administrators can change these." : "Read only: ask an administrator to change them."}</p>
-      </div>
-      {msg && <Alert tone={msg.tone}>{msg.text}</Alert>}
+      <PageHeader
+        title="Settings"
+        description={admin ? "How Charlotte presents itself." : "Read only: ask an administrator to change these."}
+      />
       <form onSubmit={save} className="space-y-6">
-        <Card title="Assistant">
-          <div className="grid gap-4 md:grid-cols-2">
-            <Input label="Name (also the wake word)" value={form["assistant.name"]} disabled={!admin} maxLength={40} onChange={(e) => set("assistant.name", e.target.value)} />
-            <Select label="Language" value={form["assistant.language"]} disabled={!admin} onChange={(e) => set("assistant.language", e.target.value)}>
-              <option value="en">English</option>
-              <option value="fr">Français</option>
-            </Select>
-          </div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <HugeiconsIcon icon={AiMagicIcon} strokeWidth={2} className="size-4 text-primary" />
+              Assistant
+            </CardTitle>
+            <CardDescription>Its name is also the word that will wake it up.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FieldGroup className="grid gap-6 md:grid-cols-2">
+              <Field>
+                <FieldLabel htmlFor="assistant-name">Name</FieldLabel>
+                <Input
+                  id="assistant-name"
+                  value={form["assistant.name"]}
+                  disabled={!admin}
+                  maxLength={40}
+                  onChange={(e) => set("assistant.name", e.target.value)}
+                />
+              </Field>
+              <Field>
+                <FieldLabel>Language</FieldLabel>
+                <Select
+                  value={form["assistant.language"]}
+                  disabled={!admin}
+                  onValueChange={(v) => set("assistant.language", v as Settings["assistant.language"])}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="en">English</SelectItem>
+                    <SelectItem value="fr">Français</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </FieldGroup>
+          </CardContent>
         </Card>
-        <Card title="Bluetooth">
-          <Input label="Name shown to phones and computers" value={form["bluetooth.name"]} disabled={!admin} maxLength={60} onChange={(e) => set("bluetooth.name", e.target.value)} />
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <HugeiconsIcon icon={BluetoothIcon} strokeWidth={2} className="size-4 text-primary" />
+              Bluetooth
+            </CardTitle>
+            <CardDescription>The name phones and computers see when they look for a speaker.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Field>
+              <FieldLabel htmlFor="bt-name">Speaker name</FieldLabel>
+              <Input
+                id="bt-name"
+                value={form["bluetooth.name"]}
+                disabled={!admin}
+                maxLength={60}
+                onChange={(e) => set("bluetooth.name", e.target.value)}
+              />
+              <FieldDescription>Applied immediately. Already-paired devices may keep showing the old name until they reconnect.</FieldDescription>
+            </Field>
+          </CardContent>
+          {admin && (
+            <CardFooter className="justify-end">
+              <Button type="submit" disabled={saving}>
+                {saving ? <Spinner /> : <HugeiconsIcon icon={FloppyDiskIcon} strokeWidth={2} />}
+                Save
+              </Button>
+            </CardFooter>
+          )}
         </Card>
-        {admin && <Button type="submit">Save</Button>}
       </form>
     </>
   );

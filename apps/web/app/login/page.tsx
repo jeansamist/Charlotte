@@ -1,7 +1,15 @@
 "use client";
+import { AlertCircleIcon, Login03Icon } from "@hugeicons/core-free-icons";
+import { HugeiconsIcon } from "@hugeicons/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Alert, Button, Input } from "@/components/ui";
+import { BrandMark } from "@/components/brand";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 
 export default function LoginPage() {
@@ -26,20 +34,43 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-4">
-      <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-2xl border border-line bg-panel p-6 shadow-sm">
-        <div>
-          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-accent text-lg font-bold text-white">C</div>
-          <h1 className="text-xl font-semibold">Sign in to Charlotte</h1>
-          <p className="text-sm text-muted">Your self-hosted home assistant.</p>
+    <main className="flex min-h-svh items-center justify-center bg-muted/40 p-4">
+      <div className="w-full max-w-sm space-y-6">
+        <div className="flex items-center justify-center gap-2">
+          <BrandMark />
+          <span className="font-heading text-xl font-semibold">Charlotte</span>
         </div>
-        {error && <Alert>{error}</Alert>}
-        <Input label="Username" autoComplete="username" autoFocus value={username} onChange={(e) => setUsername(e.target.value)} required />
-        <Input label="Password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-        <Button type="submit" disabled={busy} className="w-full">
-          {busy ? "Signing in…" : "Sign in"}
-        </Button>
-      </form>
+        <Card>
+          <CardHeader>
+            <CardTitle>Sign in</CardTitle>
+            <CardDescription>Your self-hosted home assistant.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={submit}>
+              <FieldGroup>
+                {error && (
+                  <Alert variant="destructive">
+                    <HugeiconsIcon icon={AlertCircleIcon} strokeWidth={2} />
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
+                <Field>
+                  <FieldLabel htmlFor="username">Username</FieldLabel>
+                  <Input id="username" autoComplete="username" autoFocus required value={username} onChange={(e) => setUsername(e.target.value)} />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="password">Password</FieldLabel>
+                  <Input id="password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+                </Field>
+                <Button type="submit" disabled={busy} className="w-full">
+                  {busy ? <Spinner /> : <HugeiconsIcon icon={Login03Icon} strokeWidth={2} />}
+                  Sign in
+                </Button>
+              </FieldGroup>
+            </form>
+          </CardContent>
+        </Card>
+      </div>
     </main>
   );
 }
