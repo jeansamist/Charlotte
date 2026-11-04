@@ -40,6 +40,8 @@ trait Adapter1 {
 pub enum BluetoothError {
     #[error("D-Bus error talking to BlueZ: {0}")]
     DBus(#[from] zbus::Error),
+    #[error("D-Bus error talking to BlueZ: {0}")]
+    Fdo(#[from] zbus::fdo::Error),
     #[error("invalid Bluetooth address {0:?}")]
     InvalidAddress(String),
 }
