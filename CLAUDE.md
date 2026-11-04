@@ -101,6 +101,13 @@ Plan and milestones: `services/audio-server/docs/PLAN.md`. M1 = PoC: 2 phones ov
   `ducking.level_db`, and are restored after `hold_ms` of silence. It can be toggled and tuned from the GUI.
 - Pairing: audio-server's own agent (NoInputNoOutput). New devices can pair only while the pairing window is open
   (Discoverable + Pairable share a timeout). Paired devices are trusted.
+- Performance baseline (2026-11-04): audio-server < 1% CPU, ~15 MB RSS, 0 xruns. The PipeWire data-loop runs at RR 20.
+  Clock drift from the Mac caused audible "drift_skips" → replaced by gentle 1-frame slips (`slips` counter).
+  Capture streams use `resample.quality=10`. SBC-XQ is enabled, but the soundcore R50i negotiates plain SBC.
+  Debian's PipeWire has no AAC (no fdk-aac), so phones and Macs use SBC.
+- The Debian box is on **Wi-Fi** (wlo1, Intel AX201 combo chip shares the antenna with Bluetooth). Ethernet is recommended for audio stability.
+- After a restart of wireplumber/bluetooth, the Bluetooth headphones do not reconnect by themselves (`bluetoothctl connect <addr>`).
+  Auto-reconnect of the last output is a candidate feature.
 - Test setup: MacBook → (A2DP) → Debian mixer → soundcore R50i earbuds (41:42:9A:86:8B:AA).
 - Spec rules: work incrementally; no HTTP API or frontend until the M1 audio pipeline works; never claim
   Bluetooth capabilities that have not been tested.
