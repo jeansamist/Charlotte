@@ -75,6 +75,8 @@ Proposed, pending owner validation. Full details are in `docs/architecture.md`.
 - Admin CLI: `(set -a; . ~/.config/charlotte/gateway.env; set +a; node apps/gateway/dist/cli.js create-admin|reset-password <user>|set <key> <value>|migrate)`.
 - Node on Debian comes from **nvm** (non-interactive shells must `source ~/.nvm/nvm.sh`). pnpm 10 workspace (`apps/gateway`, `apps/web`).
 - Update the Debian install after pulling: `bash scripts/install.sh` (safe to re-run).
+- **Web UI rules (owner, 2026-11-04): shadcn/ui components (all installed), Outfit font, Hugeicons icons only, no emojis.**
+  Details in `apps/web/README.md` → "UI rules". The `cn` npm package is shadcn's own (not a mistake).
 - UI text is English for now. The owner speaks **French**, so answer in French.
 
 ## Current focus (2026-11-04)
