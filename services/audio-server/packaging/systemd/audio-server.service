@@ -1,0 +1,23 @@
+# Charlotte audio-server — systemd *user* service.
+#
+# PipeWire runs per user, so the mixer must run in the same user session.
+# For headless boot (no login), enable lingering once:  loginctl enable-linger $USER
+#
+# Install: ~/.config/systemd/user/audio-server.service
+#          systemctl --user daemon-reload && systemctl --user enable --now audio-server
+[Unit]
+Description=Charlotte multi-source Bluetooth audio mixer
+After=pipewire.service wireplumber.service
+Requires=pipewire.service
+Wants=wireplumber.service
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/audio-server --config %h/.config/charlotte/audio-server.toml run
+Restart=on-failure
+RestartSec=2
+# Real-time priority for the audio callbacks is granted by PipeWire (RTKit / rlimits).
+NoNewPrivileges=true
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,25 @@
+[package]
+name = "audio-server"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT"
+description = "Charlotte: headless multi-source Bluetooth audio mixer server (PipeWire + BlueZ)"
+publish = false
+
+[[bin]]
+name = "audio-server"
+path = "src/main.rs"
+
+[dependencies]
+# PipeWire bindings. `v0_3_49` enables `target.object` and `Buffer::requested` (Debian ships PipeWire 1.6).
+pipewire = { version = "0.10.1", features = ["v0_3_49"] }
+# Real-time-safe SPSC ring buffers between capture callbacks and the mixer callback.
+rtrb = "0.4"
+serde = { version = "1", features = ["derive"] }
+toml = "1"
+anyhow = "1"
+thiserror = "2"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+clap = { version = "4", features = ["derive"] }

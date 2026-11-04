@@ -1,0 +1,37 @@
+# Charlotte audio-server — default configuration.
+# Copy to /etc/charlotte/audio-server.toml (system) or pass with --config.
+
+[server]
+name = "charlotte-audio-server"
+host = "0.0.0.0"   # used by the HTTP API (milestone 2)
+port = 8080
+
+[audio]
+# Internal mixing format. Milestone 1 supports only 48000 Hz / stereo / f32.
+# PipeWire converts every input to this format before it reaches the mixer.
+sample_rate = 48000
+channels = 2
+format = "f32"
+# PipeWire quantum requested by our streams, in frames (power of two, 64..=8192).
+buffer_size = 512
+# Audio buffered per input before it is mixed. Absorbs Bluetooth jitter (ms).
+input_latency_ms = 60
+# Max number of simultaneous inputs.
+max_inputs = 16
+master_volume = 0.8
+limiter_enabled = true
+# Limiter ceiling (linear, 0 < x <= 1).
+limiter_threshold = 0.95
+
+[bluetooth]
+enabled = true
+auto_accept_trusted_devices = true
+# Automatically add every new Bluetooth audio source to the mixer.
+auto_connect_sources = true
+
+[output]
+# "default" = PipeWire default sink, or a node.name (see `audio-server list-nodes`).
+device = "default"
+
+[logging]
+level = "info"

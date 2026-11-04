@@ -21,7 +21,10 @@ about the project (purpose, stack, structure, commands, conventions, decisions).
   - Project path: `/home/jeansamist/Charlotte`.
 - Debian testing (forky/sid), kernel 7.1.x, 12 cores, 15 GB RAM.
 - **Root disk is ~94% full (≈3 GB free)** — watch out with large installs, Docker images, `node_modules`.
-- Tooling seen in home dir (not yet confirmed for this project): bun, cargo, AdonisJS v6 history.
+- Tooling: Rust 1.96 (~/.cargo/bin). Also seen: bun, AdonisJS v6 history.
+- Audio/BT on the box: PipeWire 1.6.7, WirePlumber 0.5.15, BlueZ 5.85, Intel AX201 Bluetooth, Alder Lake HDA speaker.
+  The default sink is an snd_aloop "Loopback" device, and the speaker is muted at volume 0. Don't change the user's audio settings without asking.
+- No passwordless sudo. Ask the user to run `sudo` commands themselves.
 
 ## Decisions log
 - 2026-11-04 — Target hardware: x86_64 Debian, like the dev box. No ARM for now.
@@ -56,8 +59,24 @@ Proposed, pending owner validation. Full details are in `docs/architecture.md`.
 - Face recognition: local by default (InsightFace). Rekognition is an optional adapter.
 - Packaging: .deb + systemd. Docker only for the dev stack.
 
+## Current focus (2026-11-04)
+**`services/audio-server`** (Rust) is the first component built. Everything else in the monorepo is a
+**mock/placeholder** (README only). Spec: multi-source Bluetooth audio mixer (BlueZ + PipeWire).
+Plan and milestones: `services/audio-server/docs/PLAN.md`. M1 = PoC: 2 phones over A2DP → mixed → laptop speaker.
+- Real-time rule: never allocate, lock or block in PipeWire `process` callbacks (rtrb buffers, atomics, command queue).
+- `bluez5.media-source-role = input` (WirePlumber rule) is required. Otherwise phones play straight to the speakers.
+- PipeWire runs **per user** → the service is a systemd **user** unit, and the scripts must not run as root.
+- Spec rules: work incrementally; no HTTP API or frontend until the M1 audio pipeline works; never claim
+  Bluetooth capabilities that have not been tested.
+
 ## Commands
-_TBD (install, dev, build, test, lint)_
+Rust code is edited on the Mac but **built and run on Debian** (PipeWire headers are Linux-only):
+```bash
+ssh debian 'cd ~/Charlotte && git pull && cargo test -p audio-server && cargo build --release -p audio-server'
+ssh debian '~/Charlotte/target/release/audio-server list-nodes'
+```
+Pure DSP tests (no PipeWire) can also run on the Mac through a scratch crate that includes `src/audio/{buffer,mixer,limiter,engine}.rs`.
+Root `Cargo.toml` is a workspace. Dev profile uses `debug = "line-tables-only"` (low disk on the Debian box).
 
 ## Conventions
 _TBD_
