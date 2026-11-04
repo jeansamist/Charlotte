@@ -42,7 +42,7 @@ pub fn apply_identity(adapter: &str, name: &str) -> Result<AdapterStatus, Blueto
     zbus::block_on(async {
         let conn = zbus::Connection::system().await?;
         let proxy = Adapter1Proxy::builder(&conn)
-            .path(format!("/org/bluez/{adapter}"))?
+            .path(format!("/org/bluez/{adapter}"))
             .build()
             .await?;
         let mut renamed = false;

@@ -6,7 +6,6 @@
 //! - [`devices`]: PipeWire node discovery and classification.
 //! - [`monitoring`]: CPU / memory sampling.
 //! - [`app`]: wires everything to the PipeWire main loop.
-//!
 //! - [`bluetooth`]: adapter identity (name, class) over BlueZ D-Bus.
 //!
 //! Pairing is handled by BlueZ (see `scripts/bt-sink.sh`). The full D-Bus
