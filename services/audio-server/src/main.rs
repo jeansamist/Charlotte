@@ -57,7 +57,11 @@ fn real_main() -> anyhow::Result<()> {
     }
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new(format!("audio_server={}", cfg.logging.level)));
-    tracing_subscriber::fmt().with_env_filter(filter).with_target(false).init();
+    tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_target(false)
+        .with_writer(std::io::stderr)
+        .init();
     tracing::info!(
         config = %file.as_ref().map_or("<built-in defaults>".into(), |p| p.display().to_string()),
         version = env!("CARGO_PKG_VERSION"),

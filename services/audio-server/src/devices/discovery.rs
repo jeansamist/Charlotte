@@ -47,14 +47,18 @@ pub fn classify<'a>(get: impl Fn(&str) -> Option<&'a str>) -> NodeKind {
     if get("application.name") == Some(APP_NAME) || name.starts_with(OWN_NODE_PREFIX) {
         return NodeKind::Own;
     }
+    // Registry globals carry only a few properties (device.api is often absent),
+    // so node-name prefixes set by the ALSA and BlueZ monitors are used as well.
     let api = get("device.api");
-    let is_bt = api == Some("bluez5") || name.starts_with("bluez_input.");
+    let is_bt = api == Some("bluez5") || name.starts_with("bluez_input.") || name.starts_with("bluez_output.");
 
     match class {
         "Audio/Source" if is_bt => NodeKind::BluetoothSource,
         "Stream/Output/Audio" if is_bt => NodeKind::BluetoothPlayback,
         "Audio/Sink" => {
-            let physical = matches!(api, Some("alsa") | Some("bluez5"));
+            let physical = matches!(api, Some("alsa") | Some("bluez5"))
+                || name.starts_with("alsa_output.")
+                || name.starts_with("bluez_output.");
             if physical && !name.contains("snd_aloop") {
                 NodeKind::OutputSink
             } else {
@@ -132,6 +136,25 @@ mod tests {
                 ("device.api", "alsa"),
             ]),
             NodeKind::VirtualSink
+        );
+    }
+
+    #[test]
+    fn sinks_without_device_api_use_node_name() {
+        assert_eq!(
+            kind(&[
+                ("media.class", "Audio/Sink"),
+                ("node.name", "alsa_output.pci-0000_00_1f.3-platform-skl_hda_dsp_generic.HiFi__Speaker__sink"),
+            ]),
+            NodeKind::OutputSink
+        );
+        assert_eq!(
+            kind(&[("media.class", "Audio/Sink"), ("node.name", "bluez_output.AA_BB_CC_DD_EE_FF.1")]),
+            NodeKind::OutputSink
+        );
+        assert_eq!(
+            kind(&[("media.class", "Audio/Source"), ("node.name", "bluez_input.AA_BB_CC_DD_EE_FF.2")]),
+            NodeKind::BluetoothSource
         );
     }
 
