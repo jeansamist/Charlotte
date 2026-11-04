@@ -56,6 +56,9 @@ pub fn connect_capture(
         format!("{}/{}", audio.buffer_size, audio.sample_rate),
     );
     props.insert(*pw::keys::TARGET_OBJECT, target);
+    // Phones and Macs send 44.1 kHz; PipeWire converts to our 48 kHz. Use a
+    // high-quality resampler (default is 4 of 0–14); CPU cost is negligible here.
+    props.insert("resample.quality", "10");
 
     let stream = pw::stream::StreamRc::new(core.clone(), &format!("mixer-in-{slot}"), props)?;
     let name = target.to_owned();

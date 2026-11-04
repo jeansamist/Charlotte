@@ -43,7 +43,7 @@ Threads:
 | Module | Role |
 |---|---|
 | `config` | TOML loading and validation (reports all errors at once) |
-| `audio::buffer` | Lock-free per-input ring buffer (`rtrb`), latency prefill, underrun/overrun counters, drift skip |
+| `audio::buffer` | Lock-free per-input ring buffer (`rtrb`), latency prefill, underrun/overrun counters, clock-drift correction |
 | `audio::mixer` | Mixing primitives, atomic per-channel controls |
 | `audio::limiter` | Peak limiter and hard clip |
 | `audio::engine` | Real-time mixer: inputs, smoothing, ducking, master, limiter. `EngineHandle` is the control side |
@@ -112,6 +112,11 @@ Reference file: [`config/default.toml`](config/default.toml). Unknown keys are r
 
 ## Limits (known)
 - Only 48 kHz / stereo / f32 internally.
-- Clock drift is handled by dropping audio when an input buffer exceeds 2× its latency target; adaptive resampling is planned.
+- Clock drift is corrected gently: when an input's *average* buffer level leaves the latency target ± 25%, one frame
+  per block is removed (averaged with its neighbour) or repeated, a speed change of about 0.2% that cannot be heard.
+  Only after a stall (more than 4× the target queued) does the buffer jump back, counted in `drift_skips`.
+- Inputs are resampled by PipeWire (44.1 → 48 kHz) at `resample.quality = 10`.
+- Codecs: SBC from phones and computers. AAC needs PipeWire built with libfdk-aac, which Debian does not ship.
+  SBC-XQ is enabled towards headphones that accept it.
 - Several A2DP sources at once depend on the Bluetooth adapter (Intel AX201: tested with a Mac, an iPhone and earbuds).
 - Changing `output.device` to a fixed node needs a restart; the GUI changes the default sink instead.

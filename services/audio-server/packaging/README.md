@@ -21,6 +21,7 @@ WirePlumber 0.5+ configuration, installed to `~/.config/wireplumber/wireplumber.
 1. **Music roles only:** `bluez5.roles = [ a2dp_sink a2dp_source bap_sink bap_source ]`, `bluez5.hfphsp-backend = "none"`.
    Without this, Debian also offers the hands-free and headset roles. A Mac or iPhone may then pick the call profile
    (mSBC, 16 kHz mono), and the sound becomes choppy.
+   It also enables **SBC-XQ** (higher bitrate) towards headphones and speakers that accept it.
 2. **No automatic switch to the headset profile:** `bluetooth.autoswitch-to-headset-profile = false`.
 3. **Phones as sources:** `bluez5.media-source-role = "input"` for `bluez_input.*` nodes. By default PipeWire plays
    a phone's audio straight to the speaker. With `input`, each phone becomes an `Audio/Source` that the mixer captures.

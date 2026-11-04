@@ -31,7 +31,7 @@ Local API used by the Charlotte gateway. It is served by axum on its own thread,
     { "slot": 0, "name": "mac’s MacBook Pro", "node": "bluez_input.DC_A9_04_71_E0_B2.2", "kind": "bluetooth",
       "volume": 1.0, "muted": false, "peak": 0.38, "streaming": true, "active": true,
       "ducked": false, "duck_gain": 1.0,
-      "buffered_ms": 64.0, "underruns": 0, "overruns": 0, "drift_skips": 0 }
+      "buffered_ms": 64.0, "underruns": 0, "overruns": 0, "slips": 12, "drift_skips": 0 }
   ]
 }
 ```
@@ -43,7 +43,9 @@ Local API used by the Charlotte gateway. It is served by axum on its own thread,
 | `streaming` | The input delivers audio (not buffering or under-running) |
 | `active` | The input is "playing" (above `ducking.threshold_db`) |
 | `ducked` / `duck_gain` | Lowered because another input is in the foreground; current ducking gain (1 = full level) |
-| `buffered_ms`, `underruns`, `overruns`, `drift_skips` | Buffer health |
+| `buffered_ms`, `underruns`, `overruns` | Buffer health |
+| `slips` | Gentle clock-drift corrections (one frame removed or repeated; inaudible) |
+| `drift_skips` | Emergency jumps back to the latency target after a stall (audible; should stay 0) |
 
 Every mixer `PUT` below returns the same document as `GET /api/mixer`.
 

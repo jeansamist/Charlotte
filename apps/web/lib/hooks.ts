@@ -22,10 +22,16 @@ export function usePoll<T>(path: string, everyMs = 0) {
     alive.current = true;
     void reload();
     if (!everyMs) return () => void (alive.current = false);
-    const t = setInterval(() => void reload(), everyMs);
+    // Do not poll while the tab is hidden; refresh as soon as it is visible again.
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") void reload();
+    }, everyMs);
+    const onVisible = () => document.visibilityState === "visible" && void reload();
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       alive.current = false;
       clearInterval(t);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [reload, everyMs]);
   return { data, setData, error, reload };

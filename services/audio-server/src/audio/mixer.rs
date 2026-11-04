@@ -39,8 +39,10 @@ pub struct ChannelControl {
     pub underruns: AtomicU64,
     /// Input buffer was full and samples were dropped.
     pub overruns: AtomicU64,
-    /// Samples skipped to bring latency back down (clock drift).
+    /// Emergency jumps back to the latency target (after a stall).
     pub drift_skips: AtomicU64,
+    /// Gentle clock-drift corrections (one frame removed or repeated).
+    pub slips: AtomicU64,
     /// Interleaved samples currently buffered.
     pub buffered: AtomicU32,
     /// Making sound right now (smart mixing activity detector).
@@ -62,6 +64,7 @@ impl ChannelControl {
             underruns: AtomicU64::new(0),
             overruns: AtomicU64::new(0),
             drift_skips: AtomicU64::new(0),
+            slips: AtomicU64::new(0),
             buffered: AtomicU32::new(0),
             active: AtomicBool::new(false),
             ducked: AtomicBool::new(false),

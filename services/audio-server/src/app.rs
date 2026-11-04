@@ -412,6 +412,7 @@ fn report(st: &mut State) {
             underruns = c.underruns.load(Relaxed),
             overruns = c.overruns.load(Relaxed),
             drift_skips = c.drift_skips.load(Relaxed),
+            slips = c.slips.load(Relaxed),
             "  input"
         );
     }

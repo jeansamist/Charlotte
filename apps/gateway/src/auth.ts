@@ -59,13 +59,21 @@ export async function deleteSession(db: Db, token: string) {
   await db.query("DELETE FROM sessions WHERE token_hash = $1", [sha256(token)]);
 }
 
-/** Resolves the cookie to a user, sliding the expiry. Returns undefined if invalid. */
+/**
+ * Resolves the cookie to a user. The expiry slides, but the session row is
+ * rewritten at most every 5 minutes (the GUI polls several times per second).
+ */
 export async function userFromToken(db: Db, token: string, days: number): Promise<SessionUser | undefined> {
   const { rows } = await db.query<{ id: string; username: string; display_name: string; role: Role }>(
-    `UPDATE sessions s SET last_seen_at = now(), expires_at = now() + make_interval(days => $2)
-       FROM users u
-      WHERE s.token_hash = $1 AND s.expires_at > now() AND u.id = s.user_id
-      RETURNING u.id, u.username, u.display_name, u.role`,
+    `WITH s AS (
+       SELECT u.id, u.username, u.display_name, u.role
+         FROM sessions s JOIN users u ON u.id = s.user_id
+        WHERE s.token_hash = $1 AND s.expires_at > now()
+     ), touch AS (
+       UPDATE sessions SET last_seen_at = now(), expires_at = now() + make_interval(days => $2)
+        WHERE token_hash = $1 AND last_seen_at < now() - interval '5 minutes' AND EXISTS (SELECT 1 FROM s)
+     )
+     SELECT id, username, display_name, role FROM s`,
     [sha256(token), days],
   );
   const r = rows[0];

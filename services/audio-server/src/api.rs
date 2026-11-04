@@ -131,6 +131,7 @@ fn mixer_json(s: &Shared) -> Value {
                 "underruns": c.underruns.load(Relaxed),
                 "overruns": c.overruns.load(Relaxed),
                 "drift_skips": c.drift_skips.load(Relaxed),
+                "slips": c.slips.load(Relaxed),
                 "active": c.active.load(Relaxed),
                 "ducked": c.ducked.load(Relaxed),
                 "duck_gain": c.duck_gain.get(),

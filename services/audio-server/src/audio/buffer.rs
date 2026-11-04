@@ -18,10 +18,18 @@ pub struct InputConsumer {
     channels: usize,
     /// Samples to buffer before playing (latency target).
     prefill: usize,
-    /// Above this many buffered samples, old audio is dropped (drift control).
+    /// Above this many buffered samples, old audio is dropped at once (emergency only).
     max_fill: usize,
+    /// Dead band around `prefill` before the gentle drift correction acts.
+    band: f32,
+    /// Smoothed buffer level (samples). Bursty Bluetooth delivery makes the
+    /// instantaneous level jump; corrections follow the average.
+    level: f32,
     primed: bool,
 }
+
+/// Smoothing of the buffer level (≈ 1 s with 10 ms blocks).
+const LEVEL_ALPHA: f32 = 0.01;
 
 /// Creates a buffer that holds `capacity` interleaved samples.
 pub fn input_buffer(
@@ -42,8 +50,10 @@ pub fn input_buffer(
             inner: c,
             channels,
             prefill,
-            // Allow 2x the target before skipping, to avoid constant corrections.
-            max_fill: (prefill * 2).min(capacity) / channels * channels,
+            // Gentle correction handles normal drift; jumps only after a long stall.
+            max_fill: (prefill * 4).min(capacity) / channels * channels,
+            band: (prefill / 4).max(channels * 64) as f32,
+            level: prefill as f32,
             primed: false,
         },
     )
@@ -105,8 +115,8 @@ impl InputConsumer {
             self.primed = true;
         }
 
-        // Clock drift: the source runs slightly faster than our output.
-        // Drop the excess, keeping `prefill` samples of latency.
+        // Emergency: far too much audio queued (e.g. after a stall). Jump back to
+        // the latency target.
         if avail > self.max_fill {
             let skip = (avail - self.prefill) / self.channels * self.channels;
             if let Ok(chunk) = self.inner.read_chunk(skip) {
@@ -114,6 +124,26 @@ impl InputConsumer {
             }
             control.drift_skips.fetch_add(1, Relaxed);
             avail -= skip;
+            self.level = avail as f32;
+        }
+
+        // Clock drift: the sender's clock is slightly faster or slower than the
+        // output's. Remove or repeat ONE frame per block (≈0.2% speed change),
+        // which is inaudible, until the average level is back near the target.
+        self.level += (avail as f32 - self.level) * LEVEL_ALPHA;
+        let ch = self.channels;
+        let target = self.prefill as f32;
+        if dst.len() >= 2 * ch {
+            if self.level > target + self.band && avail >= dst.len() + ch {
+                self.read_dropping_frame(dst);
+                control.slips.fetch_add(1, Relaxed);
+                return ReadStatus::Full;
+            }
+            if self.level < target - self.band && avail >= dst.len() {
+                self.read_repeating_frame(dst);
+                control.slips.fetch_add(1, Relaxed);
+                return ReadStatus::Full;
+            }
         }
 
         let n = dst.len().min(avail) / self.channels * self.channels;
@@ -131,6 +161,35 @@ impl InputConsumer {
             return ReadStatus::Underrun(n);
         }
         ReadStatus::Full
+    }
+
+    /// Fills `dst` from `dst.len() + 1 frame` of input: the last two frames are
+    /// averaged into one, so the stream advances one frame faster.
+    fn read_dropping_frame(&mut self, dst: &mut [f32]) {
+        let (n, ch) = (dst.len(), self.channels);
+        let Ok(chunk) = self.inner.read_chunk(n + ch) else { return };
+        let (a, b) = chunk.as_slices();
+        let get = |i: usize| if i < a.len() { a[i] } else { b[i - a.len()] };
+        for (i, d) in dst[..n - ch].iter_mut().enumerate() {
+            *d = get(i);
+        }
+        for c in 0..ch {
+            dst[n - ch + c] = 0.5 * (get(n - ch + c) + get(n + c));
+        }
+        chunk.commit_all();
+    }
+
+    /// Fills `dst` from `dst.len() - 1 frame` of input and repeats the last
+    /// frame, so the stream advances one frame slower.
+    fn read_repeating_frame(&mut self, dst: &mut [f32]) {
+        let (n, ch) = (dst.len(), self.channels);
+        let Ok(chunk) = self.inner.read_chunk(n - ch) else { return };
+        let (a, b) = chunk.as_slices();
+        dst[..a.len()].copy_from_slice(a);
+        dst[a.len()..n - ch].copy_from_slice(b);
+        chunk.commit_all();
+        let (head, tail) = dst.split_at_mut(n - ch);
+        tail.copy_from_slice(&head[n - 2 * ch..]);
     }
 
     /// True if the producer side was dropped (input stream destroyed).
@@ -181,14 +240,76 @@ mod tests {
     }
 
     #[test]
-    fn drift_skip_keeps_latency_bounded() {
-        let (mut p, mut c, ctl) = make(128, 8); // max_fill = 16
-        p.push(&(0..40).map(|i| i as f32).collect::<Vec<_>>());
+    fn emergency_skip_after_a_stall() {
+        let (mut p, mut c, ctl) = make(256, 8); // max_fill = 32
+        p.push(&(0..80).map(|i| i as f32).collect::<Vec<_>>());
         let mut out = [0.0f32; 4];
         assert_eq!(c.read(&mut out, &ctl), ReadStatus::Full);
-        // 40 buffered > 16: skip 32 → keep the newest 8, read 4 of them.
-        assert_eq!(out, [32.0, 33.0, 34.0, 35.0]);
+        // 80 buffered > 32: skip 72 → keep the newest 8, read 4 of them.
+        assert_eq!(out, [72.0, 73.0, 74.0, 75.0]);
         assert_eq!(ctl.drift_skips.load(Relaxed), 1);
+    }
+
+    /// Simulates a sender whose clock is `ppm` faster (or slower if negative)
+    /// than the output; returns (final level in samples, slips, emergency skips).
+    fn simulate_drift(ppm: i64) -> (usize, u64, u64) {
+        let ch = 2;
+        let block = 512 * ch; // 512 frames per callback
+        let prefill = 2880 * ch; // 60 ms
+        let ctl = Arc::new(ChannelControl::new("t"));
+        let (mut p, mut c) = input_buffer(prefill * 8, prefill, ch, ctl.clone());
+        let mut out = vec![0.0f32; block];
+        let mut owed = 0i64; // extra frames ×1e6
+        let mut val = 0.0f32;
+        // 10 minutes of audio.
+        for _ in 0..(48_000 * 600 / 512) {
+            owed += 512 * ppm;
+            let extra = owed / 1_000_000;
+            owed -= extra * 1_000_000;
+            let frames = (512 + extra) as usize;
+            let data: Vec<f32> = (0..frames * ch).map(|_| { val += 1.0; val }).collect();
+            p.push(&data);
+            c.read(&mut out, &ctl);
+        }
+        (c.inner.slots(), ctl.slips.load(Relaxed), ctl.drift_skips.load(Relaxed))
+    }
+
+    #[test]
+    fn fast_sender_is_corrected_without_jumps() {
+        let (level, slips, skips) = simulate_drift(300); // 300 ppm, worse than real devices
+        assert_eq!(skips, 0, "no audible jump");
+        assert!(slips > 0);
+        let prefill = 2880 * 2;
+        assert!(level.abs_diff(prefill) < prefill / 2, "level {level} stays near {prefill}");
+    }
+
+    #[test]
+    fn slow_sender_is_corrected_without_underruns() {
+        let (level, slips, skips) = simulate_drift(-300);
+        assert_eq!(skips, 0);
+        assert!(slips > 0);
+        let prefill = 2880 * 2;
+        assert!(level.abs_diff(prefill) < prefill / 2, "level {level} stays near {prefill}");
+    }
+
+    #[test]
+    fn dropping_a_frame_averages_the_boundary() {
+        let ctl = Arc::new(ChannelControl::new("t"));
+        let (mut p, mut c) = input_buffer(64, 4, 2, ctl);
+        p.push(&[1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 5.0, 5.0]);
+        let mut out = [0.0f32; 6];
+        c.read_dropping_frame(&mut out);
+        assert_eq!(out, [1.0, 1.0, 2.0, 2.0, 4.0, 4.0]); // frames 3 and 4 merged
+    }
+
+    #[test]
+    fn repeating_a_frame_holds_the_last_value() {
+        let ctl = Arc::new(ChannelControl::new("t"));
+        let (mut p, mut c) = input_buffer(64, 4, 2, ctl);
+        p.push(&[1.0, 1.0, 2.0, 2.0]);
+        let mut out = [0.0f32; 6];
+        c.read_repeating_frame(&mut out);
+        assert_eq!(out, [1.0, 1.0, 2.0, 2.0, 2.0, 2.0]);
     }
 
     #[test]
