@@ -40,6 +40,9 @@ export interface Channel {
   streaming: boolean;
   buffered_ms: number;
   underruns: number;
+  active: boolean;
+  ducked: boolean;
+  duck_gain: number;
 }
 export interface Mixer {
   master: { volume: number; muted: boolean; peak: number; limiter_gain: number };
