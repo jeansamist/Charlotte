@@ -5,8 +5,15 @@ about the project (purpose, stack, structure, commands, conventions, decisions).
 
 ## Project
 - **Name:** Charlotte
-- **Purpose:** _TBD (to be provided by the owner)_
-- **Status:** Empty repository, `main` branch, no commits yet (as of 2026-11-04).
+- **Purpose:** Self-hosted, installable AI home assistant for Linux (like Alexa / Google Home), built by and for the owner.
+  - Assistant **name** and **language** are configurable (name also used as the wake word).
+  - It can talk with the user (voice + text) and act (home automation, cameras, audio, custom skills).
+- **Initial capabilities:** an audio server that mixes several audio sources, a camera program (video stream), a web GUI for configuration,
+  multi-account management, person-at-home detection, face recognition, Home Assistant connection,
+  and a custom-feature/plugin system for capabilities added later.
+- **Tech mix:** Rust, Python, Node.js, React, React Native, PostgreSQL, AWS, MCP, Home Assistant, AI voice providers, LLMs.
+  It is a monorepo with many sub-projects.
+- **Status:** Architecture proposal stage (2026-11-04). See `docs/architecture.md` (draft v0.1, not yet validated by the owner).
 
 ## Environment
 - Code lives on a Debian machine, accessed over SSH from the owner's Mac.
@@ -24,7 +31,14 @@ about the project (purpose, stack, structure, commands, conventions, decisions).
 - Always pull on the target side before editing, so the two copies never drift.
 
 ## Stack / Architecture
-_TBD_
+Proposed, pending owner validation. Full details are in `docs/architecture.md`.
+- Every capability is a **skill = MCP server**. The `brain` (Python) is the MCP client.
+- Rust: `supervisor` (CLI/installer), `audio-server`, `camera`.
+- Python: `brain` (LLM agent), `voice` (wake word, STT, TTS), `vision` (faces/presence).
+- Node/TS: `gateway` API. React `web`, React Native `mobile`.
+- NATS event bus + typed contracts (`packages/contracts`). PostgreSQL + pgvector.
+- Local-first; AWS is optional (remote access, backups, push).
+- Packaging: .deb + systemd. Docker only for the dev stack.
 
 ## Commands
 _TBD (install, dev, build, test, lint)_
