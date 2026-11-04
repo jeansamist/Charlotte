@@ -59,6 +59,24 @@ Proposed, pending owner validation. Full details are in `docs/architecture.md`.
 - Face recognition: local by default (InsightFace). Rekognition is an optional adapter.
 - Packaging: .deb + systemd. Docker only for the dev stack.
 
+## Implemented components (2026-11-04)
+| Path | Tech | Role | Runs as |
+|---|---|---|---|
+| `services/audio-server` | Rust (PipeWire, BlueZ/zbus 6, axum) | Bluetooth multi-source mixer, smart mixing (ducking), pairing agent, local API on 127.0.0.1:8080 (**no auth**) | `audio-server.service` (user) |
+| `apps/gateway` | Node 24, TypeScript, Fastify 5, pg, argon2id, zod 4 | Login (username + password), sessions (DB, httpOnly cookie), users/roles, settings, authenticated proxy to audio-server | `charlotte-gateway.service` on 127.0.0.1:4000 |
+| `apps/web` | Next.js 16 (App Router, standalone), React 19, Tailwind 4 | GUI: login, Audio, Bluetooth, Settings, Users, Account. Proxies `/api/*` → gateway (same origin) | `charlotte-web.service` on 0.0.0.0:3000 |
+| `scripts/install.sh` | bash | Full Debian install/update (idempotent): packages, toolchains, builds, audio-server, BT class, Postgres role+DB, migrations, admin, user services, linger | – |
+
+- **Database:** existing Docker container `postgres_database` (postgres:17, port 5432, superuser `root`, restart unless-stopped).
+  Charlotte uses its own role and database `charlotte`. The password is in `~/.config/charlotte/gateway.env` (chmod 600) on Debian.
+  Other databases in that container belong to other projects: never touch them.
+- **Settings source of truth = DB** (`settings` table). The gateway reconciler pushes the Bluetooth name to audio-server whenever it (re)starts.
+- **Auth for now = local username/password** (owner decision 2026-11-04). Cognito/AWS comes later. Roles: admin, member.
+- Admin CLI: `(set -a; . ~/.config/charlotte/gateway.env; set +a; node apps/gateway/dist/cli.js create-admin|reset-password <user>|set <key> <value>|migrate)`.
+- Node on Debian comes from **nvm** (non-interactive shells must `source ~/.nvm/nvm.sh`). pnpm 10 workspace (`apps/gateway`, `apps/web`).
+- Update the Debian install after pulling: `bash scripts/install.sh` (safe to re-run).
+- UI text is English for now. The owner speaks **French**, so answer in French.
+
 ## Current focus (2026-11-04)
 **`services/audio-server`** (Rust) is the first component built. Everything else in the monorepo is a
 **mock/placeholder** (README only). Spec: multi-source Bluetooth audio mixer (BlueZ + PipeWire).
@@ -77,6 +95,12 @@ Plan and milestones: `services/audio-server/docs/PLAN.md`. M1 = PoC: 2 phones ov
 - BlueZ's *hostname* plugin overwrites `Class` from main.conf with Computer/Laptop (chassis=laptop).
   iOS then hides the device. setup-bluetooth.sh adds a systemd drop-in `bluetoothd --noplugin=hostname`.
 - Stop a background mixer with `pkill -TERM -x audio-server` (SIGINT is ignored by `&` jobs; never `pkill -f "audio-server run"`, which matches the ssh shell itself).
+- Mac sounded choppy because it connected in **HFP (mSBC 16 kHz)**. The WirePlumber config now limits roles to A2DP/BAP
+  (`bluez5.roles`, `hfphsp-backend = none`, no autoswitch), and the mixer captures only `api.bluez5.profile` a2dp*/bap*.
+- **Smart mixing (ducking)** is required: the newest device that starts playing takes the foreground, the others fade to
+  `ducking.level_db`, and are restored after `hold_ms` of silence. It can be toggled and tuned from the GUI.
+- Pairing: audio-server's own agent (NoInputNoOutput). New devices can pair only while the pairing window is open
+  (Discoverable + Pairable share a timeout). Paired devices are trusted.
 - Test setup: MacBook → (A2DP) → Debian mixer → soundcore R50i earbuds (41:42:9A:86:8B:AA).
 - Spec rules: work incrementally; no HTTP API or frontend until the M1 audio pipeline works; never claim
   Bluetooth capabilities that have not been tested.
