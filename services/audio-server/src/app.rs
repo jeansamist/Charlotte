@@ -19,8 +19,8 @@ use pw::registry::GlobalObject;
 use pw::spa::utils::dict::DictRef;
 use pw::types::ObjectType;
 use std::cell::RefCell;
-use std::collections::HashMap;
-use std::rc::Rc;
+use std::collections::{HashMap, HashSet};
+use std::rc::{Rc, Weak};
 use std::sync::atomic::Ordering::Relaxed;
 use std::time::Duration;
 use tracing::{error, info, warn};
@@ -39,8 +39,13 @@ struct State {
     core: pw::core::CoreRc,
     engine: EngineHandle,
     devices: DeviceRegistry,
+    registry: pw::registry::RegistryRc,
     /// PipeWire node id → capture stream.
     captures: HashMap<u32, CaptureStream>,
+    /// Bluetooth sources whose full properties we are fetching before capturing.
+    probes: HashMap<u32, (pw::node::Node, pw::node::NodeListener)>,
+    /// Bluetooth sources we decided not to capture (e.g. headset microphone proxies).
+    ignored: HashSet<u32>,
     sims: Vec<SimSource>,
     sampler: ProcessSampler,
     last_cycles: u64,
@@ -70,7 +75,10 @@ pub fn run(cfg: Config, opts: RunOptions) -> anyhow::Result<()> {
         core: core.clone(),
         engine: handle,
         devices: DeviceRegistry::default(),
+        registry: registry.clone(),
         captures: HashMap::new(),
+        probes: HashMap::new(),
+        ignored: HashSet::new(),
         sims: Vec::new(),
         sampler: ProcessSampler::default(),
         last_cycles: 0,
@@ -130,6 +138,7 @@ pub fn run(cfg: Config, opts: RunOptions) -> anyhow::Result<()> {
 
     // Graceful shutdown: stop inputs first, then the output.
     let mut st = state.borrow_mut();
+    st.probes.clear();
     st.captures.clear();
     st.sims.clear();
     info!("stopped");
@@ -161,23 +170,42 @@ fn on_global(state: &Rc<RefCell<State>>, g: &GlobalObject<&DictRef>, capture_bt:
 
     match kind {
         NodeKind::BluetoothSource if capture_bt => {
-            let (slot, producer) = match st.engine.add_input(&description) {
-                Ok(v) => v,
+            // Registry globals carry only a few properties. Fetch the full node info
+            // before deciding: WirePlumber also creates `bluez5.loopback` sources that
+            // stand for a headset's microphone, and capturing one would switch the
+            // headset to the low-quality HFP profile.
+            let registry = st.registry.clone();
+            drop(st);
+            let node: pw::node::Node = match registry.bind(g) {
+                Ok(n) => n,
                 Err(e) => {
-                    error!(device = %description, error = %e, "cannot add Bluetooth input");
+                    error!(id = g.id, error = %e, "cannot inspect Bluetooth source");
                     return;
                 }
             };
-            match connect_capture(&st.core, &name, slot, producer, &st.cfg.audio) {
-                Ok(cap) => {
-                    info!(id = g.id, slot, device = %description, node = %name, "Bluetooth source connected → mixer input");
-                    st.captures.insert(g.id, cap);
-                }
-                Err(e) => {
-                    error!(device = %description, error = %e, "cannot capture Bluetooth source");
-                    let _ = st.engine.remove_input(slot);
-                }
-            }
+            let id = g.id;
+            let weak: Weak<RefCell<State>> = Rc::downgrade(state);
+            let listener = node
+                .add_listener_local()
+                .info(move |info| {
+                    let Some(state) = weak.upgrade() else { return };
+                    let Ok(mut st) = state.try_borrow_mut() else { return };
+                    if st.captures.contains_key(&id) || st.ignored.contains(&id) {
+                        return; // already decided (info is re-sent on every change)
+                    }
+                    let loopback = info
+                        .props()
+                        .and_then(|p| p.get("bluez5.loopback"))
+                        .is_some_and(|v| v == "true");
+                    if loopback {
+                        info!(id, device = %description, "ignoring headset microphone proxy (bluez5.loopback)");
+                        st.ignored.insert(id);
+                    } else {
+                        start_capture(&mut st, id, &name, &description);
+                    }
+                })
+                .register();
+            state.borrow_mut().probes.insert(id, (node, listener));
         }
         NodeKind::BluetoothSource => {
             info!(id = g.id, device = %description, "Bluetooth source available (auto-capture disabled)");
@@ -197,8 +225,32 @@ fn on_global(state: &Rc<RefCell<State>>, g: &GlobalObject<&DictRef>, capture_bt:
     }
 }
 
+fn start_capture(st: &mut State, id: u32, name: &str, description: &str) {
+    let (slot, producer) = match st.engine.add_input(description) {
+        Ok(v) => v,
+        Err(e) => {
+            error!(device = %description, error = %e, "cannot add Bluetooth input");
+            st.ignored.insert(id);
+            return;
+        }
+    };
+    match connect_capture(&st.core, name, slot, producer, &st.cfg.audio) {
+        Ok(cap) => {
+            info!(id, slot, device = %description, node = %name, "Bluetooth source connected → mixer input");
+            st.captures.insert(id, cap);
+        }
+        Err(e) => {
+            error!(device = %description, error = %e, "cannot capture Bluetooth source");
+            let _ = st.engine.remove_input(slot);
+            st.ignored.insert(id);
+        }
+    }
+}
+
 fn on_global_remove(state: &Rc<RefCell<State>>, id: u32) {
     let mut st = state.borrow_mut();
+    st.probes.remove(&id);
+    st.ignored.remove(&id);
     if let Some(cap) = st.captures.remove(&id) {
         let slot = cap.slot;
         drop(cap);
@@ -212,6 +264,16 @@ fn on_global_remove(state: &Rc<RefCell<State>>, id: u32) {
 
 fn report(st: &mut State) {
     st.engine.collect_garbage();
+    // Drop node probes once a decision was made (never from inside their own callback).
+    let decided: Vec<u32> = st
+        .probes
+        .keys()
+        .filter(|id| st.captures.contains_key(id) || st.ignored.contains(id))
+        .copied()
+        .collect();
+    for id in decided {
+        st.probes.remove(&id);
+    }
     let m = st.engine.master().clone();
     let cycles = m.cycles.load(Relaxed);
     if cycles == st.last_cycles {
